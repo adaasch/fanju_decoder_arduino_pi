@@ -1,0 +1,11 @@
+cmake_minimum_required(VERSION 3.0.0)
+project(fanju VERSION 0.1.0)
+
+add_executable(fanju fanju.cpp ELECHOUSE_CC1101_SRC_DRV.cpp)
+
+target_link_libraries(fanju pigpio)
+
+target_include_directories(fanju PUBLIC
+                          "${PROJECT_BINARY_DIR}"
+                          "${PROJECT_SOURCE_DIR}"
+                          )

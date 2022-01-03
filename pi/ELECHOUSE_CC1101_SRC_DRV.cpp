@@ -13,60 +13,69 @@
 cc1101 Driver for RC Switch. Mod by Little Satan. With permission to modify and publish Wilson Shen (ELECHOUSE).
 ----------------------------------------------------------------------------------------------------------------
 */
-#include <SPI.h>
+
 #include "ELECHOUSE_CC1101_SRC_DRV.h"
-#include <Arduino.h>
+#include <pigpio.h>
+
+#define delay(x)  gpioSleep(PI_TIME_RELATIVE, 0, x *1000)
+#define INPUT PI_INPUT
+#define OUTPUT PI_OUTPUT
+#define LOW 0
+#define HIGH 1
+#define pinMode(x,y) gpioSetMode(x,y)
+#define digitalWrite(x,y) gpioWrite(x,y)
+#define digitalRead(x) gpioRead(x)
 
 /****************************************************************/
 #define WRITE_BURST 0x40     //write burst
 #define READ_SINGLE 0x80     //read single
 #define READ_BURST 0xC0      //read burst
-#define BYTES_IN_RXFIFO 0x7F //byte number in RXfifo
+#define uint8_tS_IN_RXFIFO 0x7F //uint8_t number in RXfifo
 #define max_modul 6
 
-byte modulation = 2;
-byte frend0;
-byte chan = 0;
+uint8_t modulation = 2;
+uint8_t frend0;
+uint8_t chan = 0;
 int pa = 12;
-byte last_pa;
-byte SCK_PIN;
-byte MISO_PIN;
-byte MOSI_PIN;
-byte SS_PIN;
-byte GDO0;
-byte GDO2;
-byte SCK_PIN_M[max_modul];
-byte MISO_PIN_M[max_modul];
-byte MOSI_PIN_M[max_modul];
-byte SS_PIN_M[max_modul];
-byte GDO0_M[max_modul];
-byte GDO2_M[max_modul];
-byte gdo_set = 0;
+uint8_t last_pa;
+uint8_t SCK_PIN;
+uint8_t MISO_PIN;
+uint8_t MOSI_PIN;
+uint8_t SS_PIN;
+uint8_t GDO0;
+uint8_t GDO2;
+uint8_t SCK_PIN_M[max_modul];
+uint8_t MISO_PIN_M[max_modul];
+uint8_t MOSI_PIN_M[max_modul];
+uint8_t SS_PIN_M[max_modul];
+uint8_t GDO0_M[max_modul];
+uint8_t GDO2_M[max_modul];
+uint8_t gdo_set = 0;
 bool spi = 0;
 bool ccmode = 0;
 float MHz = 433.92;
-byte m4RxBw = 0;
-byte m4DaRa;
-byte m2DCOFF;
-byte m2MODFM;
-byte m2MANCH;
-byte m2SYNCM;
-byte m1FEC;
-byte m1PRE;
-byte m1CHSP;
-byte pc1PQT;
-byte pc1CRC_AF;
-byte pc1APP_ST;
-byte pc1ADRCHK;
-byte pc0WDATA;
-byte pc0PktForm;
-byte pc0CRC_EN;
-byte pc0LenConf;
-byte trxstate = 0;
-byte clb1[2] = {24, 28};
-byte clb2[2] = {31, 38};
-byte clb3[2] = {65, 76};
-byte clb4[2] = {77, 79};
+uint8_t m4RxBw = 0;
+uint8_t m4DaRa;
+uint8_t m2DCOFF;
+uint8_t m2MODFM;
+uint8_t m2MANCH;
+uint8_t m2SYNCM;
+uint8_t m1FEC;
+uint8_t m1PRE;
+uint8_t m1CHSP;
+uint8_t pc1PQT;
+uint8_t pc1CRC_AF;
+uint8_t pc1APP_ST;
+uint8_t pc1ADRCHK;
+uint8_t pc0WDATA;
+uint8_t pc0PktForm;
+uint8_t pc0CRC_EN;
+uint8_t pc0LenConf;
+uint8_t trxstate = 0;
+uint8_t clb1[2] = {24, 28};
+uint8_t clb2[2] = {31, 38};
+uint8_t clb3[2] = {65, 76};
+uint8_t clb4[2] = {77, 79};
 
 /****************************************************************/
 uint8_t PA_TABLE[8]{0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -150,27 +159,7 @@ void ELECHOUSE_CC1101::SpiEnd(void)
   SPI.endTransaction();
   SPI.end();
 }
-/****************************************************************
-*FUNCTION NAME: GDO_Set()
-*FUNCTION     : set GDO0,GDO2 pin for serial pinmode.
-*INPUT        : none
-*OUTPUT       : none
-****************************************************************/
-void ELECHOUSE_CC1101::GDO_Set(void)
-{
-  pinMode(GDO0, OUTPUT);
-  pinMode(GDO2, INPUT);
-}
-/****************************************************************
-*FUNCTION NAME: GDO_Set()
-*FUNCTION     : set GDO0 for internal transmission mode.
-*INPUT        : none
-*OUTPUT       : none
-****************************************************************/
-void ELECHOUSE_CC1101::GDO0_Set(void)
-{
-  pinMode(GDO0, INPUT);
-}
+
 /****************************************************************
 *FUNCTION NAME:Reset
 *FUNCTION     :CC1101 reset //details refer datasheet of CC1101/CC1100//
@@ -214,7 +203,7 @@ void ELECHOUSE_CC1101::Init(void)
 *INPUT        :addr: register address; value: register value
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::SpiWriteReg(byte addr, byte value)
+void ELECHOUSE_CC1101::SpiWriteReg(uint8_t addr, uint8_t value)
 {
   SpiStart();
   digitalWrite(SS_PIN, LOW);
@@ -231,9 +220,9 @@ void ELECHOUSE_CC1101::SpiWriteReg(byte addr, byte value)
 *INPUT        :addr: register address; buffer:register value array; num:number to write
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::SpiWriteBurstReg(byte addr, byte *buffer, byte num)
+void ELECHOUSE_CC1101::SpiWriteBurstReg(uint8_t addr, uint8_t *buffer, uint8_t num)
 {
-  byte i, temp;
+  uint8_t i, temp;
   SpiStart();
   temp = addr | WRITE_BURST;
   digitalWrite(SS_PIN, LOW);
@@ -253,7 +242,7 @@ void ELECHOUSE_CC1101::SpiWriteBurstReg(byte addr, byte *buffer, byte num)
 *INPUT        :strobe: command; //refer define in CC1101.h//
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::SpiStrobe(byte strobe)
+void ELECHOUSE_CC1101::SpiStrobe(uint8_t strobe)
 {
   SpiStart();
   digitalWrite(SS_PIN, LOW);
@@ -269,9 +258,9 @@ void ELECHOUSE_CC1101::SpiStrobe(byte strobe)
 *INPUT        :addr: register address
 *OUTPUT       :register value
 ****************************************************************/
-byte ELECHOUSE_CC1101::SpiReadReg(byte addr)
+uint8_t ELECHOUSE_CC1101::SpiReadReg(uint8_t addr)
 {
-  byte temp, value;
+  uint8_t temp, value;
   SpiStart();
   temp = addr | READ_SINGLE;
   digitalWrite(SS_PIN, LOW);
@@ -290,9 +279,9 @@ byte ELECHOUSE_CC1101::SpiReadReg(byte addr)
 *INPUT        :addr: register address; buffer:array to store register value; num: number to read
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::SpiReadBurstReg(byte addr, byte *buffer, byte num)
+void ELECHOUSE_CC1101::SpiReadBurstReg(uint8_t addr, uint8_t *buffer, uint8_t num)
 {
-  byte i, temp;
+  uint8_t i, temp;
   SpiStart();
   temp = addr | READ_BURST;
   digitalWrite(SS_PIN, LOW);
@@ -313,9 +302,9 @@ void ELECHOUSE_CC1101::SpiReadBurstReg(byte addr, byte *buffer, byte num)
 *INPUT        :addr: register address
 *OUTPUT       :status value
 ****************************************************************/
-byte ELECHOUSE_CC1101::SpiReadStatus(byte addr)
+uint8_t ELECHOUSE_CC1101::SpiReadStatus(uint8_t addr)
 {
-  byte value, temp;
+  uint8_t value, temp;
   SpiStart();
   temp = addr | READ_BURST;
   digitalWrite(SS_PIN, LOW);
@@ -326,142 +315,6 @@ byte ELECHOUSE_CC1101::SpiReadStatus(byte addr)
   digitalWrite(SS_PIN, HIGH);
   SpiEnd();
   return value;
-}
-/****************************************************************
-*FUNCTION NAME:SPI pin Settings
-*FUNCTION     :Set Spi pins
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::setSpi(void)
-{
-  if (spi == 0)
-  {
-#if defined __AVR_ATmega168__ || defined __AVR_ATmega328P__
-    SCK_PIN = 13;
-    MISO_PIN = 12;
-    MOSI_PIN = 11;
-    SS_PIN = 10;
-#elif defined __AVR_ATmega1280__ || defined __AVR_ATmega2560__
-    SCK_PIN = 52;
-    MISO_PIN = 50;
-    MOSI_PIN = 51;
-    SS_PIN = 53;
-#elif ESP8266
-    SCK_PIN = 14;
-    MISO_PIN = 12;
-    MOSI_PIN = 13;
-    SS_PIN = 15;
-#elif ESP32
-    SCK_PIN = 18;
-    MISO_PIN = 19;
-    MOSI_PIN = 23;
-    SS_PIN = 5;
-#else
-    SCK_PIN = 13;
-    MISO_PIN = 12;
-    MOSI_PIN = 11;
-    SS_PIN = 10;
-#endif
-  }
-}
-/****************************************************************
-*FUNCTION NAME:COSTUM SPI
-*FUNCTION     :set costum spi pins.
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::setSpiPin(byte sck, byte miso, byte mosi, byte ss)
-{
-  spi = 1;
-  SCK_PIN = sck;
-  MISO_PIN = miso;
-  MOSI_PIN = mosi;
-  SS_PIN = ss;
-}
-/****************************************************************
-*FUNCTION NAME:COSTUM SPI
-*FUNCTION     :set costum spi pins.
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::addSpiPin(byte sck, byte miso, byte mosi, byte ss, byte modul)
-{
-  spi = 1;
-  SCK_PIN_M[modul] = sck;
-  MISO_PIN_M[modul] = miso;
-  MOSI_PIN_M[modul] = mosi;
-  SS_PIN_M[modul] = ss;
-}
-/****************************************************************
-*FUNCTION NAME:GDO Pin settings
-*FUNCTION     :set GDO Pins
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::setGDO(byte gdo0, byte gdo2)
-{
-  GDO0 = gdo0;
-  GDO2 = gdo2;
-  GDO_Set();
-}
-/****************************************************************
-*FUNCTION NAME:GDO0 Pin setting
-*FUNCTION     :set GDO0 Pin
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::setGDO0(byte gdo0)
-{
-  GDO0 = gdo0;
-  GDO0_Set();
-}
-/****************************************************************
-*FUNCTION NAME:GDO Pin settings
-*FUNCTION     :add GDO Pins
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::addGDO(byte gdo0, byte gdo2, byte modul)
-{
-  GDO0_M[modul] = gdo0;
-  GDO2_M[modul] = gdo2;
-  gdo_set = 2;
-  GDO_Set();
-}
-/****************************************************************
-*FUNCTION NAME:add GDO0 Pin
-*FUNCTION     :add GDO0 Pin
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::addGDO0(byte gdo0, byte modul)
-{
-  GDO0_M[modul] = gdo0;
-  gdo_set = 1;
-  GDO0_Set();
-}
-/****************************************************************
-*FUNCTION NAME:set Modul
-*FUNCTION     :change modul
-*INPUT        :none
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::setModul(byte modul)
-{
-  SCK_PIN = SCK_PIN_M[modul];
-  MISO_PIN = MISO_PIN_M[modul];
-  MOSI_PIN = MOSI_PIN_M[modul];
-  SS_PIN = SS_PIN_M[modul];
-  if (gdo_set == 1)
-  {
-    GDO0 = GDO0_M[modul];
-  }
-  else if (gdo_set == 2)
-  {
-    GDO0 = GDO0_M[modul];
-    GDO2 = GDO2_M[modul];
-  }
 }
 /****************************************************************
 *FUNCTION NAME:CCMode
@@ -496,7 +349,7 @@ void ELECHOUSE_CC1101::setCCMode(bool s)
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::setModulation(byte m)
+void ELECHOUSE_CC1101::setModulation(uint8_t m)
 {
   if (m > 4)
   {
@@ -722,9 +575,9 @@ void ELECHOUSE_CC1101::setPA(int p)
 ****************************************************************/
 void ELECHOUSE_CC1101::setMHZ(float mhz)
 {
-  byte freq2 = 0;
-  byte freq1 = 0;
-  byte freq0 = 0;
+  uint8_t freq2 = 0;
+  uint8_t freq1 = 0;
+  uint8_t freq0 = 0;
 
   MHz = mhz;
 
@@ -855,7 +708,7 @@ void ELECHOUSE_CC1101::Calibrate(void)
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::setClb(byte b, byte s, byte e)
+void ELECHOUSE_CC1101::setClb(uint8_t b, uint8_t s, uint8_t e)
 {
   if (b == 1)
   {
@@ -902,7 +755,7 @@ bool ELECHOUSE_CC1101::getCC1101(void)
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-byte ELECHOUSE_CC1101::getMode(void)
+uint8_t ELECHOUSE_CC1101::getMode(void)
 {
   return trxstate;
 }
@@ -912,7 +765,7 @@ byte ELECHOUSE_CC1101::getMode(void)
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::setSyncWord(byte sh, byte sl)
+void ELECHOUSE_CC1101::setSyncWord(uint8_t sh, uint8_t sl)
 {
   SpiWriteReg(CC1101_SYNC1, sh);
   SpiWriteReg(CC1101_SYNC0, sl);
@@ -923,7 +776,7 @@ void ELECHOUSE_CC1101::setSyncWord(byte sh, byte sl)
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::setAddr(byte v)
+void ELECHOUSE_CC1101::setAddr(uint8_t v)
 {
   SpiWriteReg(CC1101_ADDR, v);
 }
@@ -933,7 +786,7 @@ void ELECHOUSE_CC1101::setAddr(byte v)
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::setPQT(byte v)
+void ELECHOUSE_CC1101::setPQT(uint8_t v)
 {
   Split_PKTCTRL1();
   pc1PQT = 0;
@@ -962,7 +815,7 @@ void ELECHOUSE_CC1101::setCRC_AF(bool v)
 }
 /****************************************************************
 *FUNCTION NAME:Set APPEND_STATUS
-*FUNCTION     :When enabled, two status bytes will be appended to the payload of the packet
+*FUNCTION     :When enabled, two status uint8_ts will be appended to the payload of the packet
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
@@ -982,7 +835,7 @@ void ELECHOUSE_CC1101::setAppendStatus(bool v)
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::setAdrChk(byte v)
+void ELECHOUSE_CC1101::setAdrChk(uint8_t v)
 {
   Split_PKTCTRL1();
   pc1ADRCHK = 0;
@@ -1015,7 +868,7 @@ void ELECHOUSE_CC1101::setWhiteData(bool v)
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::setPktFormat(byte v)
+void ELECHOUSE_CC1101::setPktFormat(uint8_t v)
 {
   Split_PKTCTRL0();
   pc0PktForm = 0;
@@ -1048,7 +901,7 @@ void ELECHOUSE_CC1101::setCrc(bool v)
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::setLengthConfig(byte v)
+void ELECHOUSE_CC1101::setLengthConfig(uint8_t v)
 {
   Split_PKTCTRL0();
   pc0LenConf = 0;
@@ -1065,7 +918,7 @@ void ELECHOUSE_CC1101::setLengthConfig(byte v)
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::setPacketLength(byte v)
+void ELECHOUSE_CC1101::setPacketLength(uint8_t v)
 {
   SpiWriteReg(CC1101_PKTLEN, v);
 }
@@ -1107,7 +960,7 @@ void ELECHOUSE_CC1101::setManchester(bool v)
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::setSyncMode(byte v)
+void ELECHOUSE_CC1101::setSyncMode(uint8_t v)
 {
   Split_MDMCFG2();
   m2SYNCM = 0;
@@ -1136,11 +989,11 @@ void ELECHOUSE_CC1101::setFEC(bool v)
 }
 /****************************************************************
 *FUNCTION NAME:Set PRE
-*FUNCTION     :Sets the minimum number of preamble bytes to be transmitted.
+*FUNCTION     :Sets the minimum number of preamble uint8_ts to be transmitted.
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::setPRE(byte v)
+void ELECHOUSE_CC1101::setPRE(uint8_t v)
 {
   Split_MDMCFG1();
   m1PRE = 0;
@@ -1157,7 +1010,7 @@ void ELECHOUSE_CC1101::setPRE(byte v)
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::setChannel(byte ch)
+void ELECHOUSE_CC1101::setChannel(uint8_t ch)
 {
   chan = ch;
   SpiWriteReg(CC1101_CHANNR, chan);
@@ -1171,7 +1024,7 @@ void ELECHOUSE_CC1101::setChannel(byte ch)
 void ELECHOUSE_CC1101::setChsp(float f)
 {
   Split_MDMCFG1();
-  byte MDMCFG0 = 0;
+  uint8_t MDMCFG0 = 0;
   m1CHSP = 0;
   if (f > 405.456543)
   {
@@ -1254,7 +1107,7 @@ void ELECHOUSE_CC1101::setDRate(float d)
 {
   Split_MDMCFG4();
   float c = d;
-  byte MDMCFG3 = 0;
+  uint8_t MDMCFG3 = 0;
   if (c > 1621.83)
   {
     c = 1621.83;
@@ -1609,9 +1462,9 @@ int ELECHOUSE_CC1101::getRssi(void)
 *INPUT        :none
 *OUTPUT       :none
 ****************************************************************/
-byte ELECHOUSE_CC1101::getLqi(void)
+uint8_t ELECHOUSE_CC1101::getLqi(void)
 {
-  byte lqi;
+  uint8_t lqi;
   lqi = SpiReadStatus(CC1101_LQI);
   return lqi;
 }
@@ -1658,12 +1511,12 @@ void ELECHOUSE_CC1101::goSleep(void)
 void ELECHOUSE_CC1101::SendData(char *txchar)
 {
   int len = strlen(txchar);
-  byte chartobyte[len];
+  uint8_t chartouint8_t[len];
   for (int i = 0; i < len; i++)
   {
-    chartobyte[i] = txchar[i];
+    chartouint8_t[i] = txchar[i];
   }
-  SendData(chartobyte, len);
+  SendData(chartouint8_t, len);
 }
 /****************************************************************
 *FUNCTION NAME:SendData
@@ -1671,7 +1524,7 @@ void ELECHOUSE_CC1101::SendData(char *txchar)
 *INPUT        :txBuffer: data array to send; size: number of data to send, no more than 61
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::SendData(byte *txBuffer, byte size)
+void ELECHOUSE_CC1101::SendData(uint8_t *txBuffer, uint8_t size)
 {
   SpiWriteReg(CC1101_TXFIFO, size);
   SpiWriteBurstReg(CC1101_TXFIFO, txBuffer, size); //write data to send
@@ -1693,12 +1546,12 @@ void ELECHOUSE_CC1101::SendData(byte *txBuffer, byte size)
 void ELECHOUSE_CC1101::SendData(char *txchar, int t)
 {
   int len = strlen(txchar);
-  byte chartobyte[len];
+  uint8_t chartouint8_t[len];
   for (int i = 0; i < len; i++)
   {
-    chartobyte[i] = txchar[i];
+    chartouint8_t[i] = txchar[i];
   }
-  SendData(chartobyte, len, t);
+  SendData(chartouint8_t, len, t);
 }
 /****************************************************************
 *FUNCTION NAME:SendData
@@ -1706,7 +1559,7 @@ void ELECHOUSE_CC1101::SendData(char *txchar, int t)
 *INPUT        :txBuffer: data array to send; size: number of data to send, no more than 61
 *OUTPUT       :none
 ****************************************************************/
-void ELECHOUSE_CC1101::SendData(byte *txBuffer, byte size, int t)
+void ELECHOUSE_CC1101::SendData(uint8_t *txBuffer, uint8_t size, int t)
 {
   SpiWriteReg(CC1101_TXFIFO, size);
   SpiWriteBurstReg(CC1101_TXFIFO, txBuffer, size); //write data to send
@@ -1724,7 +1577,7 @@ void ELECHOUSE_CC1101::SendData(byte *txBuffer, byte size, int t)
 ****************************************************************/
 bool ELECHOUSE_CC1101::CheckCRC(void)
 {
-  byte lqi = SpiReadStatus(CC1101_LQI);
+  uint8_t lqi = SpiReadStatus(CC1101_LQI);
   bool crc_ok = bitRead(lqi, 7);
   if (crc_ok == 1)
   {
@@ -1749,7 +1602,7 @@ int ELECHOUSE_CC1101::CheckRxFifo(int t)
   {
     SetRx();
   }
-  int len = SpiReadStatus(CC1101_RXBYTES) & BYTES_IN_RXFIFO;
+  int len = SpiReadStatus(CC1101_RXuint8_tS) & uint8_tS_IN_RXFIFO;
   if (len)
   {
     delay(t);
@@ -1766,7 +1619,7 @@ int ELECHOUSE_CC1101::CheckRxFifo(int t)
 *INPUT        :none
 *OUTPUT       :flag: 0 no data; 1 receive data 
 ****************************************************************/
-byte ELECHOUSE_CC1101::CheckReceiveFlag(void)
+uint8_t ELECHOUSE_CC1101::CheckReceiveFlag(void)
 {
   if (trxstate != 2)
   {
@@ -1789,12 +1642,12 @@ byte ELECHOUSE_CC1101::CheckReceiveFlag(void)
 *INPUT        :rxBuffer: buffer to store data
 *OUTPUT       :size of data received
 ****************************************************************/
-byte ELECHOUSE_CC1101::ReceiveData(byte *rxBuffer)
+uint8_t ELECHOUSE_CC1101::ReceiveData(uint8_t *rxBuffer)
 {
-  byte size;
-  byte status[2];
+  uint8_t size;
+  uint8_t status[2];
 
-  if (SpiReadStatus(CC1101_RXBYTES) & BYTES_IN_RXFIFO)
+  if (SpiReadStatus(CC1101_RXuint8_tS) & uint8_tS_IN_RXFIFO)
   {
     size = SpiReadReg(CC1101_RXFIFO);
     SpiReadBurstReg(CC1101_RXFIFO, rxBuffer, size);
