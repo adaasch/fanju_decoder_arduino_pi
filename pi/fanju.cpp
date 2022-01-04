@@ -80,7 +80,7 @@ void setup()
   ELECHOUSE_cc1101.setWhiteData(0);         // Turn data whitening on / off. 0 = Whitening off. 1 = Whitening on.
   ELECHOUSE_cc1101.setPktFormat(3);         // Format of RX and TX data. 0 = Normal mode, use FIFOs for RX and TX. 1 = Synchronous serial mode, Data in on GDO0 and data out on either of the GDOx pins. 2 = Random TX mode; sends random data using PN9 generator. Used for test. Works as normal mode, setting 0 (00), in RX. 3 = Asynchronous serial mode, Data in on GDO0 and data out on either of the GDOx pins.
   ELECHOUSE_cc1101.setLengthConfig(2);      // 0 = Fixed packet length mode. 1 = Variable packet length mode. 2 = Infinite packet length mode. 3 = Reserved
-  ELECHOUSE_cc1101.setPacketLength(640);    // Indicates the packet length when fixed packet length mode is enabled. If variable packet length mode is used, this value indicates the maximum packet length allowed.
+  ELECHOUSE_cc1101.setPacketLength(0xff);    // Indicates the packet length when fixed packet length mode is enabled. If variable packet length mode is used, this value indicates the maximum packet length allowed.
   ELECHOUSE_cc1101.setCrc(0);               // 1 = CRC calculation in TX and CRC check in RX enabled. 0 = CRC disabled for TX and RX.
   ELECHOUSE_cc1101.setCRC_AF(0);            // Enable automatic flush of RX FIFO when CRC is not OK. This requires that only one packet is in the RXIFIFO and that packet length is limited to the RX FIFO size.
   ELECHOUSE_cc1101.setDcFilterOff(0);       // Disable digital DC blocking filter before demodulator. Only for data rates ≤ 250 kBaud The recommended IF frequency changes when the DC blocking is disabled. 1 = Disable (current optimized). 0 = Enable (better sensitivity).
@@ -94,7 +94,7 @@ void setup()
 
   int pin = 25;
   gpioSetMode(pin, PI_INPUT);
-  gpioSetISRFunc(25, RISING_EDGE, 100, isr);
+  gpioSetISRFunc(pin, RISING_EDGE, 0, isr);
 }
 
 bool chkChkSum(uint8_t *data)
@@ -151,6 +151,7 @@ static uint8_t empty[5] = {0};
 void loop()
 {
   gpioSleep(PI_TIME_RELATIVE, 0, 100 * 1000);
+  //printf("fill: %u\n",fillLvl());
   if (fillLvl() < 40)
     return;
 
@@ -159,6 +160,7 @@ void loop()
   while (fillLvl() > 0)
   {
     uint16_t v = pop();
+    //printf("%u ",v);
     switch (state)
     {
     case mode::SYNC:

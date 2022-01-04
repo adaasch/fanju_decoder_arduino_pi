@@ -1,7 +1,0 @@
-{
-    "configuration": "cpu=atmega328",
-    "board": "arduino:avr:nano",
-    "programmer": "arduino:avrispmkii",
-    "port": "/dev/ttyUSB0",
-    "sketch": "cc1101_New_Receive_method_advanced.ino"
-}

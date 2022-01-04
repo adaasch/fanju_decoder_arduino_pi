@@ -16,20 +16,22 @@ cc1101 Driver for RC Switch. Mod by Little Satan. With permission to modify and 
 
 #include "ELECHOUSE_CC1101_SRC_DRV.h"
 #include <pigpio.h>
+#include <cstring>
+#include <cstdio>
 
-#define delay(x)  gpioSleep(PI_TIME_RELATIVE, 0, x *1000)
+#define delay(x) gpioSleep(PI_TIME_RELATIVE, 0, x * 1000)
 #define INPUT PI_INPUT
 #define OUTPUT PI_OUTPUT
 #define LOW 0
 #define HIGH 1
-#define pinMode(x,y) gpioSetMode(x,y)
-#define digitalWrite(x,y) gpioWrite(x,y)
+#define pinMode(x, y) gpioSetMode(x, y)
+#define digitalWrite(x, y) gpioWrite(x, y)
 #define digitalRead(x) gpioRead(x)
 
 /****************************************************************/
-#define WRITE_BURST 0x40     //write burst
-#define READ_SINGLE 0x80     //read single
-#define READ_BURST 0xC0      //read burst
+#define WRITE_BURST 0x40        //write burst
+#define READ_SINGLE 0x80        //read single
+#define READ_BURST 0xC0         //read burst
 #define uint8_tS_IN_RXFIFO 0x7F //uint8_t number in RXfifo
 #define max_modul 6
 
@@ -38,10 +40,7 @@ uint8_t frend0;
 uint8_t chan = 0;
 int pa = 12;
 uint8_t last_pa;
-uint8_t SCK_PIN;
-uint8_t MISO_PIN;
-uint8_t MOSI_PIN;
-uint8_t SS_PIN;
+uint8_t SS_PIN = 8;
 uint8_t GDO0;
 uint8_t GDO2;
 uint8_t SCK_PIN_M[max_modul];
@@ -76,6 +75,8 @@ uint8_t clb1[2] = {24, 28};
 uint8_t clb2[2] = {31, 38};
 uint8_t clb3[2] = {65, 76};
 uint8_t clb4[2] = {77, 79};
+
+int spiHandle;
 
 /****************************************************************/
 uint8_t PA_TABLE[8]{0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -126,6 +127,12 @@ uint8_t PA_TABLE_915[10]{
     0xC3,
     0xC0,
 }; //900 - 928
+
+long map(long x, long in_min, long in_max, long out_min, long out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
 /****************************************************************
 *FUNCTION NAME:SpiStart
 *FUNCTION     :spi communication start
@@ -134,18 +141,8 @@ uint8_t PA_TABLE_915[10]{
 ****************************************************************/
 void ELECHOUSE_CC1101::SpiStart(void)
 {
-  // initialize the SPI pins
-  pinMode(SCK_PIN, OUTPUT);
-  pinMode(MOSI_PIN, OUTPUT);
-  pinMode(MISO_PIN, INPUT);
-  pinMode(SS_PIN, OUTPUT);
-
-// enable SPI
-#ifdef ESP32
-  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN);
-#else
-  SPI.begin();
-#endif
+  spiHandle = spiOpen(0, 1000 * 1000, 0);
+  printf("spi: %i\n",spiHandle);
 }
 /****************************************************************
 *FUNCTION NAME:SpiEnd
@@ -155,9 +152,7 @@ void ELECHOUSE_CC1101::SpiStart(void)
 ****************************************************************/
 void ELECHOUSE_CC1101::SpiEnd(void)
 {
-  // disable SPI
-  SPI.endTransaction();
-  SPI.end();
+  spiClose(spiHandle);
 }
 
 /****************************************************************
@@ -168,17 +163,12 @@ void ELECHOUSE_CC1101::SpiEnd(void)
 ****************************************************************/
 void ELECHOUSE_CC1101::Reset(void)
 {
-  digitalWrite(SS_PIN, LOW);
-  delay(1);
-  digitalWrite(SS_PIN, HIGH);
-  delay(1);
-  digitalWrite(SS_PIN, LOW);
-  while (digitalRead(MISO_PIN))
-    ;
-  SPI.transfer(CC1101_SRES);
-  while (digitalRead(MISO_PIN))
-    ;
-  digitalWrite(SS_PIN, HIGH);
+  // digitalWrite(SS_PIN, LOW);
+  // delay(1);
+  // digitalWrite(SS_PIN, HIGH);
+  // delay(1);
+  char val = CC1101_SRES;
+  spiWrite(spiHandle, &val, 1);
 }
 /****************************************************************
 *FUNCTION NAME:Init
@@ -188,14 +178,10 @@ void ELECHOUSE_CC1101::Reset(void)
 ****************************************************************/
 void ELECHOUSE_CC1101::Init(void)
 {
-  setSpi();
-  SpiStart(); //spi initialization
-  digitalWrite(SS_PIN, HIGH);
-  digitalWrite(SCK_PIN, HIGH);
-  digitalWrite(MOSI_PIN, LOW);
+  SpiStart();          //spi initialization
   Reset();             //CC1101 reset
   RegConfigSettings(); //CC1101 register config
-  SpiEnd();
+  //SpiEnd();
 }
 /****************************************************************
 *FUNCTION NAME:SpiWriteReg
@@ -205,14 +191,10 @@ void ELECHOUSE_CC1101::Init(void)
 ****************************************************************/
 void ELECHOUSE_CC1101::SpiWriteReg(uint8_t addr, uint8_t value)
 {
-  SpiStart();
-  digitalWrite(SS_PIN, LOW);
-  while (digitalRead(MISO_PIN))
-    ;
-  SPI.transfer(addr);
-  SPI.transfer(value);
-  digitalWrite(SS_PIN, HIGH);
-  SpiEnd();
+  //SpiStart();
+  char val[] = {addr, value};
+  spiWrite(spiHandle, val, 2);
+  //SpiEnd();
 }
 /****************************************************************
 *FUNCTION NAME:SpiWriteBurstReg
@@ -222,19 +204,12 @@ void ELECHOUSE_CC1101::SpiWriteReg(uint8_t addr, uint8_t value)
 ****************************************************************/
 void ELECHOUSE_CC1101::SpiWriteBurstReg(uint8_t addr, uint8_t *buffer, uint8_t num)
 {
-  uint8_t i, temp;
-  SpiStart();
-  temp = addr | WRITE_BURST;
-  digitalWrite(SS_PIN, LOW);
-  while (digitalRead(MISO_PIN))
-    ;
-  SPI.transfer(temp);
-  for (i = 0; i < num; i++)
-  {
-    SPI.transfer(buffer[i]);
-  }
-  digitalWrite(SS_PIN, HIGH);
-  SpiEnd();
+  //SpiStart();
+  char val[num + 1];
+  val[0] = addr | WRITE_BURST;
+  memcpy(val + 1, buffer, num);
+  spiWrite(spiHandle, val, num + 1);
+  //SpiEnd();
 }
 /****************************************************************
 *FUNCTION NAME:SpiStrobe
@@ -244,13 +219,9 @@ void ELECHOUSE_CC1101::SpiWriteBurstReg(uint8_t addr, uint8_t *buffer, uint8_t n
 ****************************************************************/
 void ELECHOUSE_CC1101::SpiStrobe(uint8_t strobe)
 {
-  SpiStart();
-  digitalWrite(SS_PIN, LOW);
-  while (digitalRead(MISO_PIN))
-    ;
-  SPI.transfer(strobe);
-  digitalWrite(SS_PIN, HIGH);
-  SpiEnd();
+  //SpiStart();
+  spiWrite(spiHandle, (char *)&strobe, 1);
+  //SpiEnd();
 }
 /****************************************************************
 *FUNCTION NAME:SpiReadReg
@@ -260,17 +231,13 @@ void ELECHOUSE_CC1101::SpiStrobe(uint8_t strobe)
 ****************************************************************/
 uint8_t ELECHOUSE_CC1101::SpiReadReg(uint8_t addr)
 {
-  uint8_t temp, value;
-  SpiStart();
-  temp = addr | READ_SINGLE;
-  digitalWrite(SS_PIN, LOW);
-  while (digitalRead(MISO_PIN))
-    ;
-  SPI.transfer(temp);
-  value = SPI.transfer(0);
-  digitalWrite(SS_PIN, HIGH);
-  SpiEnd();
-  return value;
+  //SpiStart();
+  char val[2] = {0};
+  char res[2] = {0};
+  val[0] = addr | READ_SINGLE;
+  spiXfer(spiHandle, val, res, 2);
+  //SpiEnd();
+  return res[1];
 }
 
 /****************************************************************
@@ -281,19 +248,13 @@ uint8_t ELECHOUSE_CC1101::SpiReadReg(uint8_t addr)
 ****************************************************************/
 void ELECHOUSE_CC1101::SpiReadBurstReg(uint8_t addr, uint8_t *buffer, uint8_t num)
 {
-  uint8_t i, temp;
-  SpiStart();
-  temp = addr | READ_BURST;
-  digitalWrite(SS_PIN, LOW);
-  while (digitalRead(MISO_PIN))
-    ;
-  SPI.transfer(temp);
-  for (i = 0; i < num; i++)
-  {
-    buffer[i] = SPI.transfer(0);
-  }
-  digitalWrite(SS_PIN, HIGH);
-  SpiEnd();
+  //SpiStart();
+  char val[num + 1] = {0};
+  char res[num + 1] = {0};
+  val[0] = addr | READ_BURST;
+  spiXfer(spiHandle, val, res, num + 1);
+  memcpy(buffer, res + 1, num);
+  //SpiEnd();
 }
 
 /****************************************************************
@@ -304,17 +265,13 @@ void ELECHOUSE_CC1101::SpiReadBurstReg(uint8_t addr, uint8_t *buffer, uint8_t nu
 ****************************************************************/
 uint8_t ELECHOUSE_CC1101::SpiReadStatus(uint8_t addr)
 {
-  uint8_t value, temp;
-  SpiStart();
-  temp = addr | READ_BURST;
-  digitalWrite(SS_PIN, LOW);
-  while (digitalRead(MISO_PIN))
-    ;
-  SPI.transfer(temp);
-  value = SPI.transfer(0);
-  digitalWrite(SS_PIN, HIGH);
-  SpiEnd();
-  return value;
+  //SpiStart();
+  char val[2] = {0};
+  char res[2] = {0};
+  val[0] = addr | READ_BURST;
+  spiXfer(spiHandle, val, res, 2);
+  //SpiEnd();
+  return res[1];
 }
 /****************************************************************
 *FUNCTION NAME:CCMode
@@ -739,15 +696,18 @@ void ELECHOUSE_CC1101::setClb(uint8_t b, uint8_t s, uint8_t e)
 ****************************************************************/
 bool ELECHOUSE_CC1101::getCC1101(void)
 {
-  setSpi();
+  SpiStart();
+  int ret;
   if (SpiReadStatus(0x31) > 0)
   {
-    return 1;
+    ret = 1;
   }
   else
   {
-    return 0;
+    ret = 0;
   }
+  SpiEnd();
+  return ret;
 }
 /****************************************************************
 *FUNCTION NAME:getMode
@@ -1578,7 +1538,7 @@ void ELECHOUSE_CC1101::SendData(uint8_t *txBuffer, uint8_t size, int t)
 bool ELECHOUSE_CC1101::CheckCRC(void)
 {
   uint8_t lqi = SpiReadStatus(CC1101_LQI);
-  bool crc_ok = bitRead(lqi, 7);
+  bool crc_ok = lqi & 0b10000000;
   if (crc_ok == 1)
   {
     return 1;
