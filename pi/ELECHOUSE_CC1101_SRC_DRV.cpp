@@ -15,18 +15,18 @@ cc1101 Driver for RC Switch. Mod by Little Satan. With permission to modify and 
 */
 
 #include "ELECHOUSE_CC1101_SRC_DRV.h"
-#include <pigpio.h>
+#include <pigpiod_if2.h>
 #include <cstring>
 #include <cstdio>
 
-#define delay(x) gpioSleep(PI_TIME_RELATIVE, 0, x * 1000)
+#define delay(x) time_sleep(x/1000.0)
 #define INPUT PI_INPUT
 #define OUTPUT PI_OUTPUT
 #define LOW 0
 #define HIGH 1
-#define pinMode(x, y) gpioSetMode(x, y)
-#define digitalWrite(x, y) gpioWrite(x, y)
-#define digitalRead(x) gpioRead(x)
+// #define pinMode(x, y) gpioSetMode(x, y)
+// #define digitalWrite(x, y) gpioWrite(x, y)
+// #define digitalRead(x) gpioRead(x)
 
 /****************************************************************/
 #define WRITE_BURST 0x40        //write burst
@@ -76,7 +76,7 @@ uint8_t clb2[2] = {31, 38};
 uint8_t clb3[2] = {65, 76};
 uint8_t clb4[2] = {77, 79};
 
-int spiHandle;
+static int spiHandle, myPi;
 
 /****************************************************************/
 uint8_t PA_TABLE[8]{0x00, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -141,8 +141,9 @@ long map(long x, long in_min, long in_max, long out_min, long out_max)
 ****************************************************************/
 void ELECHOUSE_CC1101::SpiStart(void)
 {
-  spiHandle = spiOpen(0, 1000 * 1000, 0);
-  printf("spi: %i\n",spiHandle);
+  myPi = pigpio_start(NULL, NULL);
+  spiHandle = spi_open(myPi,0, 1000 * 1000, 0);
+ 
 }
 /****************************************************************
 *FUNCTION NAME:SpiEnd
@@ -152,7 +153,8 @@ void ELECHOUSE_CC1101::SpiStart(void)
 ****************************************************************/
 void ELECHOUSE_CC1101::SpiEnd(void)
 {
-  spiClose(spiHandle);
+  spi_close(myPi, spiHandle);
+  pigpio_stop(myPi);
 }
 
 /****************************************************************
@@ -168,7 +170,7 @@ void ELECHOUSE_CC1101::Reset(void)
   // digitalWrite(SS_PIN, HIGH);
   // delay(1);
   char val = CC1101_SRES;
-  spiWrite(spiHandle, &val, 1);
+  spi_write(myPi,spiHandle, &val, 1);
 }
 /****************************************************************
 *FUNCTION NAME:Init
@@ -193,7 +195,7 @@ void ELECHOUSE_CC1101::SpiWriteReg(uint8_t addr, uint8_t value)
 {
   //SpiStart();
   char val[] = {addr, value};
-  spiWrite(spiHandle, val, 2);
+  spi_write(myPi,spiHandle, val, 2);
   //SpiEnd();
 }
 /****************************************************************
@@ -208,7 +210,7 @@ void ELECHOUSE_CC1101::SpiWriteBurstReg(uint8_t addr, uint8_t *buffer, uint8_t n
   char val[num + 1];
   val[0] = addr | WRITE_BURST;
   memcpy(val + 1, buffer, num);
-  spiWrite(spiHandle, val, num + 1);
+  spi_write(myPi,spiHandle, val, num + 1);
   //SpiEnd();
 }
 /****************************************************************
@@ -220,7 +222,7 @@ void ELECHOUSE_CC1101::SpiWriteBurstReg(uint8_t addr, uint8_t *buffer, uint8_t n
 void ELECHOUSE_CC1101::SpiStrobe(uint8_t strobe)
 {
   //SpiStart();
-  spiWrite(spiHandle, (char *)&strobe, 1);
+  spi_write(myPi,spiHandle, (char *)&strobe, 1);
   //SpiEnd();
 }
 /****************************************************************
@@ -235,7 +237,7 @@ uint8_t ELECHOUSE_CC1101::SpiReadReg(uint8_t addr)
   char val[2] = {0};
   char res[2] = {0};
   val[0] = addr | READ_SINGLE;
-  spiXfer(spiHandle, val, res, 2);
+  spi_xfer(myPi,spiHandle, val, res, 2);
   //SpiEnd();
   return res[1];
 }
@@ -252,7 +254,7 @@ void ELECHOUSE_CC1101::SpiReadBurstReg(uint8_t addr, uint8_t *buffer, uint8_t nu
   char val[num + 1] = {0};
   char res[num + 1] = {0};
   val[0] = addr | READ_BURST;
-  spiXfer(spiHandle, val, res, num + 1);
+  spi_xfer(myPi,spiHandle, val, res, num + 1);
   memcpy(buffer, res + 1, num);
   //SpiEnd();
 }
@@ -269,7 +271,7 @@ uint8_t ELECHOUSE_CC1101::SpiReadStatus(uint8_t addr)
   char val[2] = {0};
   char res[2] = {0};
   val[0] = addr | READ_BURST;
-  spiXfer(spiHandle, val, res, 2);
+  spi_xfer(myPi,spiHandle, val, res, 2);
   //SpiEnd();
   return res[1];
 }
@@ -1462,73 +1464,8 @@ void ELECHOUSE_CC1101::goSleep(void)
   SpiStrobe(0x36); //Exit RX / TX, turn off frequency synthesizer and exit
   SpiStrobe(0x39); //Enter power down mode when CSn goes high.
 }
-/****************************************************************
-*FUNCTION NAME:Char direct SendData
-*FUNCTION     :use CC1101 send data
-*INPUT        :txBuffer: data array to send; size: number of data to send, no more than 61
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::SendData(char *txchar)
-{
-  int len = strlen(txchar);
-  uint8_t chartouint8_t[len];
-  for (int i = 0; i < len; i++)
-  {
-    chartouint8_t[i] = txchar[i];
-  }
-  SendData(chartouint8_t, len);
-}
-/****************************************************************
-*FUNCTION NAME:SendData
-*FUNCTION     :use CC1101 send data
-*INPUT        :txBuffer: data array to send; size: number of data to send, no more than 61
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::SendData(uint8_t *txBuffer, uint8_t size)
-{
-  SpiWriteReg(CC1101_TXFIFO, size);
-  SpiWriteBurstReg(CC1101_TXFIFO, txBuffer, size); //write data to send
-  SpiStrobe(CC1101_SIDLE);
-  SpiStrobe(CC1101_STX); //start send
-  while (!digitalRead(GDO0))
-    ; // Wait for GDO0 to be set -> sync transmitted
-  while (digitalRead(GDO0))
-    ;                     // Wait for GDO0 to be cleared -> end of packet
-  SpiStrobe(CC1101_SFTX); //flush TXfifo
-  trxstate = 1;
-}
-/****************************************************************
-*FUNCTION NAME:Char direct SendData
-*FUNCTION     :use CC1101 send data without GDO
-*INPUT        :txBuffer: data array to send; size: number of data to send, no more than 61
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::SendData(char *txchar, int t)
-{
-  int len = strlen(txchar);
-  uint8_t chartouint8_t[len];
-  for (int i = 0; i < len; i++)
-  {
-    chartouint8_t[i] = txchar[i];
-  }
-  SendData(chartouint8_t, len, t);
-}
-/****************************************************************
-*FUNCTION NAME:SendData
-*FUNCTION     :use CC1101 send data without GDO
-*INPUT        :txBuffer: data array to send; size: number of data to send, no more than 61
-*OUTPUT       :none
-****************************************************************/
-void ELECHOUSE_CC1101::SendData(uint8_t *txBuffer, uint8_t size, int t)
-{
-  SpiWriteReg(CC1101_TXFIFO, size);
-  SpiWriteBurstReg(CC1101_TXFIFO, txBuffer, size); //write data to send
-  SpiStrobe(CC1101_SIDLE);
-  SpiStrobe(CC1101_STX); //start send
-  delay(t);
-  SpiStrobe(CC1101_SFTX); //flush TXfifo
-  trxstate = 1;
-}
+
+
 /****************************************************************
 *FUNCTION NAME:Check CRC
 *FUNCTION     :none
@@ -1569,29 +1506,6 @@ int ELECHOUSE_CC1101::CheckRxFifo(int t)
     return len;
   }
   else
-  {
-    return 0;
-  }
-}
-/****************************************************************
-*FUNCTION NAME:CheckReceiveFlag
-*FUNCTION     :check receive data or not
-*INPUT        :none
-*OUTPUT       :flag: 0 no data; 1 receive data 
-****************************************************************/
-uint8_t ELECHOUSE_CC1101::CheckReceiveFlag(void)
-{
-  if (trxstate != 2)
-  {
-    SetRx();
-  }
-  if (digitalRead(GDO0)) //receive data
-  {
-    while (digitalRead(GDO0))
-      ;
-    return 1;
-  }
-  else // no data
   {
     return 0;
   }

@@ -13,7 +13,7 @@
 #include <stdint.h>
 #include <cstring>
 #include <cstdio>
-#include <pigpio.h>
+#include <pigpiod_if2.h>
 
 #define BUF_SIZE 512
 
@@ -22,6 +22,8 @@ uint16_t widx = 0;
 uint16_t ridx = 0;
 int16_t lvl;
 uint8_t buffer[BUF_SIZE] = {0};
+
+int myPi;
 
 void push(uint8_t v)
 {
@@ -47,16 +49,18 @@ int16_t fillLvl()
   return lvl;
 }
 
-void isr(int gpio, int level, uint32_t tick)
+void isr(int pi, unsigned user_gpio, unsigned level, uint32_t tick)
 {
-  uint32_t cur = gpioTick() / 100;
+  uint32_t cur = tick / 100;
   push(cur - last);
   last = cur;
 }
 
 void setup()
 {
-  if (gpioInitialise() == PI_INIT_FAILED || !ELECHOUSE_cc1101.getCC1101())
+  myPi = pigpio_start(NULL, NULL);
+
+  if (myPi < 0 || !ELECHOUSE_cc1101.getCC1101())
   {
     printf("Init Error\n");
     while (1)
@@ -80,7 +84,7 @@ void setup()
   ELECHOUSE_cc1101.setWhiteData(0);         // Turn data whitening on / off. 0 = Whitening off. 1 = Whitening on.
   ELECHOUSE_cc1101.setPktFormat(3);         // Format of RX and TX data. 0 = Normal mode, use FIFOs for RX and TX. 1 = Synchronous serial mode, Data in on GDO0 and data out on either of the GDOx pins. 2 = Random TX mode; sends random data using PN9 generator. Used for test. Works as normal mode, setting 0 (00), in RX. 3 = Asynchronous serial mode, Data in on GDO0 and data out on either of the GDOx pins.
   ELECHOUSE_cc1101.setLengthConfig(2);      // 0 = Fixed packet length mode. 1 = Variable packet length mode. 2 = Infinite packet length mode. 3 = Reserved
-  ELECHOUSE_cc1101.setPacketLength(0xff);    // Indicates the packet length when fixed packet length mode is enabled. If variable packet length mode is used, this value indicates the maximum packet length allowed.
+  ELECHOUSE_cc1101.setPacketLength(0xff);   // Indicates the packet length when fixed packet length mode is enabled. If variable packet length mode is used, this value indicates the maximum packet length allowed.
   ELECHOUSE_cc1101.setCrc(0);               // 1 = CRC calculation in TX and CRC check in RX enabled. 0 = CRC disabled for TX and RX.
   ELECHOUSE_cc1101.setCRC_AF(0);            // Enable automatic flush of RX FIFO when CRC is not OK. This requires that only one packet is in the RXIFIFO and that packet length is limited to the RX FIFO size.
   ELECHOUSE_cc1101.setDcFilterOff(0);       // Disable digital DC blocking filter before demodulator. Only for data rates ≤ 250 kBaud The recommended IF frequency changes when the DC blocking is disabled. 1 = Disable (current optimized). 0 = Enable (better sensitivity).
@@ -93,8 +97,8 @@ void setup()
   ELECHOUSE_cc1101.SetRx();
 
   int pin = 25;
-  gpioSetMode(pin, PI_INPUT);
-  gpioSetISRFunc(pin, RISING_EDGE, 0, isr);
+  set_mode(myPi, pin, PI_INPUT);
+  callback(myPi, pin, RISING_EDGE, isr);
 }
 
 bool chkChkSum(uint8_t *data)
@@ -126,11 +130,8 @@ void analyse(uint8_t *data)
     uint8_t chan = data[4] & 0x3;
     bool tx_req = data[1] & 0x8;
     bool bat_ok = !(data[1] & 0x4);
-    int32_t ts;
-    int32_t tms;
-    gpioTime(PI_TIME_RELATIVE, &ts, &tms);
 
-    printf("%d.%03d,%.1f,%u,%u,%u,%u\n", ts, tms / 1000, temp, hum, bat_ok, tx_req, chan);
+    printf("%.3f,%.1f,%u,%u,%u,%u\n", time_time(), temp, hum, bat_ok, tx_req, chan);
   }
 }
 
@@ -150,12 +151,12 @@ static uint8_t empty[5] = {0};
 
 void loop()
 {
-  gpioSleep(PI_TIME_RELATIVE, 0, 100 * 1000);
+  time_sleep(.1);
   //printf("fill: %u\n",fillLvl());
   if (fillLvl() < 40)
     return;
 
-  gpioSleep(PI_TIME_RELATIVE, 1, 0); // Wait for full reception
+  time_sleep(1); // Wait for full reception
 
   while (fillLvl() > 0)
   {
