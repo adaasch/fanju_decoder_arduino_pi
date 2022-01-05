@@ -20,7 +20,7 @@ class sensor:
    """
    A class to read the DHTXX temperature/humidity sensors.
    """
-   def __init__(self, pi, gpio, model=DHTAUTO, callback=None):
+   def __init__(self, pi=pigpio.pi(), gpio=4, model=DHTAUTO, callback=None):
       """
       Instantiate with the Pi and the GPIO connected to the
       DHT temperature and humidity sensor.
@@ -69,9 +69,9 @@ class sensor:
               self._temperature, self._humidity))
 
    def _validate_DHT11(self, b1, b2, b3, b4):
-      t = b2
+      t = b2 + b1/10.0
       h = b4
-      if (b1 == 0) and (b3 == 0) and (t <= 60) and (h >= 9) and (h <= 90):
+      if (b3 == 0) and (t <= 60) and (h >= 9) and (h <= 99):
          valid = True
       else:
          valid = False
@@ -247,7 +247,7 @@ if __name__== "__main__":
                d = s[1].read()
                print("{:.3f} {:2d} {} {:3.1f} {:3.1f}".
                   format(d[0], d[1], d[2], d[3], d[4]))
-         time.sleep(20)
+         time.sleep(5)
       except KeyboardInterrupt:
          break
 
