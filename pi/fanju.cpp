@@ -9,7 +9,9 @@
  * 
  */
 
-#include <ELECHOUSE_CC1101_SRC_DRV.h>
+#include "fanju.h"
+
+#include "ELECHOUSE_CC1101_SRC_DRV.h"
 #include <stdint.h>
 #include <cstring>
 #include <cstdio>
@@ -24,6 +26,8 @@ int16_t lvl;
 uint8_t buffer[BUF_SIZE] = {0};
 
 int myPi;
+
+fanju::FanJuCBFunc_t cb = NULL;
 
 void push(uint8_t v)
 {
@@ -56,16 +60,17 @@ void isr(int pi, unsigned user_gpio, unsigned level, uint32_t tick)
   last = cur;
 }
 
-void setup()
+int fanju::setup(FanJuCBFunc_t cbf)
 {
   myPi = pigpio_start(NULL, NULL);
 
   if (myPi < 0 || !ELECHOUSE_cc1101.getCC1101())
   {
     printf("Init Error\n");
-    while (1)
-      ;
+    return -1;
   }
+
+  cb = cbf;
 
   ELECHOUSE_cc1101.Init();                  // must be set to initialize the cc1101!
   ELECHOUSE_cc1101.setCCMode(0);            // set config for internal transmission mode.
@@ -99,6 +104,8 @@ void setup()
   int pin = 25;
   set_mode(myPi, pin, PI_INPUT);
   callback(myPi, pin, RISING_EDGE, isr);
+
+  return 0;
 }
 
 bool chkChkSum(uint8_t *data)
@@ -131,7 +138,9 @@ void analyse(uint8_t *data)
     bool tx_req = data[1] & 0x8;
     bool bat_ok = !(data[1] & 0x4);
 
-    printf("%.3f,%.1f,%u,%u,%u,%u\n", time_time(), temp, hum, bat_ok, tx_req, chan);
+    if(cb)
+      cb(temp, hum, bat_ok, tx_req, chan);
+
   }
 }
 
@@ -149,7 +158,7 @@ static uint8_t fail = 0;
 static uint8_t data[5] = {0};
 static uint8_t empty[5] = {0};
 
-void loop()
+void fanju::loop()
 {
   time_sleep(.1);
   //printf("fill: %u\n",fillLvl());
@@ -219,12 +228,4 @@ void loop()
       fail = 0;
     }
   }
-}
-
-int main(int, char **)
-{
-  setup();
-  while (1)
-    loop();
-  return 0;
 }
