@@ -1,3 +1,14 @@
+/**
+ * @file fanju.h
+ * @author Andreas Daasch
+ * @brief Decoder for FanJu outdoor temperature/humidity sensor (MIT Licence)
+ * 
+ * @date 2022-01-10
+ * 
+ * @copyright Copyright (c) 2022
+ * 
+ */
+
 #ifndef FANJU_H
 #define FANJU_H
 

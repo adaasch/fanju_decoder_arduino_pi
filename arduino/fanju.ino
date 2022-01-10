@@ -1,18 +1,19 @@
 /**
- * @file cc1101_New_Receive_method_advanced.ino
- * @author Andreas Daasch (andreas.daasch@gmail.com)
- * @brief 
- * @version 0.1
- * @date 2021-12-29
+ * @file fanju.ino
+ * @author Andreas Daasch
+ * @brief Decoder for FanJu outdoor temperature/humidity sensor (MIT Licence)
  * 
- * @copyright Copyright (c) 2021
+ * @date 2022-01-10
+ * 
+ * @copyright Copyright (c) 2022
  * 
  */
 
-#include <ELECHOUSE_CC1101_SRC_DRV.h>
+// #define CC1101
+
+// RINGBUFFER
 
 #define BUF_SIZE 512
-
 uint64_t last = 0;
 uint16_t widx = 0;
 uint16_t ridx = 0;
@@ -51,11 +52,11 @@ void isr()
   last = cur;
 }
 
-void setup()
+#ifdef CC1101
+// CC1101
+#include <ELECHOUSE_CC1101_SRC_DRV.h>
+void setup_cc1101()
 {
-
-  Serial.begin(115200);
-  //delay(2000);
   if (ELECHOUSE_cc1101.getCC1101())
   { // Check the CC1101 Spi connection.
     Serial.println("Connection OK");
@@ -73,9 +74,9 @@ void setup()
   ELECHOUSE_cc1101.setChannel(0);           // Set the Channelnumber from 0 to 255. Default is cahnnel 0.
   ELECHOUSE_cc1101.setChsp(199.95);         // The channel spacing is multiplied by the channel number CHAN and added to the base frequency in kHz. Value from 25.39 to 405.45. Default is 199.95 kHz.
   ELECHOUSE_cc1101.setRxBW(58.03);          // Set the Receive Bandwidth in kHz. Value from 58.03 to 812.50. Default is 812.50 kHz.
-  ELECHOUSE_cc1101.setDRate(3.8);           //3.8         // Set the Data Rate in kBaud. Value from 0.02 to 1621.83. Default is 99.97 kBaud!
+  ELECHOUSE_cc1101.setDRate(3.8);           // Set the Data Rate in kBaud. Value from 0.02 to 1621.83. Default is 99.97 kBaud!
   ELECHOUSE_cc1101.setPA(10);               // Set TxPower. The following settings are possible depending on the frequency band.  (-30  -20  -15  -10  -6    0    5    7    10   11   12) Default is max!
-  ELECHOUSE_cc1101.setSyncMode(4);          //4        // Combined sync-word qualifier mode. 0 = No preamble/sync. 1 = 16 sync word bits detected. 2 = 16/16 sync word bits detected. 3 = 30/32 sync word bits detected. 4 = No preamble/sync, carrier-sense above threshold. 5 = 15/16 + carrier-sense above threshold. 6 = 16/16 + carrier-sense above threshold. 7 = 30/32 + carrier-sense above threshold.
+  ELECHOUSE_cc1101.setSyncMode(4);          // Combined sync-word qualifier mode. 0 = No preamble/sync. 1 = 16 sync word bits detected. 2 = 16/16 sync word bits detected. 3 = 30/32 sync word bits detected. 4 = No preamble/sync, carrier-sense above threshold. 5 = 15/16 + carrier-sense above threshold. 6 = 16/16 + carrier-sense above threshold. 7 = 30/32 + carrier-sense above threshold.
   ELECHOUSE_cc1101.setSyncWord(0xf0, 0xf0); // Set sync word. Must be the same for the transmitter and receiver. (Syncword high, Syncword low)
   ELECHOUSE_cc1101.setAdrChk(0);            // Controls address check configuration of received packages. 0 = No address check. 1 = Address check, no broadcast. 2 = Address check and 0 (0x00) broadcast. 3 = Address check and 0 (0x00) and 255 (0xFF) broadcast.
   ELECHOUSE_cc1101.setAddr(0);              // Address used for packet filtration. Optional broadcast addresses are 0 (0x00) and 255 (0xFF).
@@ -95,10 +96,20 @@ void setup()
   Serial.println("Rx Mode");
 
   ELECHOUSE_cc1101.SetRx();
+}
+#endif
 
+void setup()
+{
+  Serial.begin(115200);
+
+  #ifdef CC1101
+  setup_cc1101();
+  #endif
+
+  // Setup interrupt
   int pin = 2;
   pinMode(pin, INPUT);
-
   attachInterrupt(digitalPinToInterrupt(pin), isr, RISING);
 }
 
@@ -111,6 +122,8 @@ void print_hex(byte inp)
   Serial.print(c);
   Serial.print(" ");
 }
+
+// FANJU DECODER
 
 enum mode
 {
@@ -129,9 +142,7 @@ static byte empty[5] = {0};
 void loop()
 {
   delay(100);
-  // Serial.print("fill: ");
-  // Serial.println(fillLvl());
-  // Serial.println(state);
+
   if (fillLvl() < 40)
     return;
 
@@ -140,15 +151,6 @@ void loop()
   while (fillLvl() > 0)
   {
     uint16_t v = pop();
-    // Serial.print("v:");
-    // Serial.print(v);
-    // Serial.print(" s:");
-    // Serial.print(state);
-    // Serial.print(" b:");
-    // Serial.print(bits);
-    // Serial.print(" f:");
-    // Serial.print(fail);
-    // Serial.println();
     switch (state)
     {
     case mode::SYNC:

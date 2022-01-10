@@ -1,4 +1,18 @@
 #!/bin/python3
+
+"""
+/**
+ * @file fanju_mqtt.py
+ * @author Andreas Daasch
+ * @brief MQTT Adapter for FanJu Decoder (MIT Licence)
+ * 
+ * @date 2022-01-10
+ * 
+ * @copyright Copyright (c) 2022
+ * 
+ */
+"""
+
 import ctypes as c
 import pathlib
 import paho.mqtt.client as mqtt

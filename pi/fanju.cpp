@@ -1,11 +1,11 @@
 /**
- * @file cc1101_New_Receive_method_advanced.ino
- * @author Andreas Daasch (andreas.daasch@gmail.com)
- * @brief 
- * @version 0.1
- * @date 2021-12-29
+ * @file fanju.cpp
+ * @author Andreas Daasch
+ * @brief Decoder for FanJu outdoor temperature/humidity sensor (MIT Licence)
  * 
- * @copyright Copyright (c) 2021
+ * @date 2022-01-10
+ * 
+ * @copyright Copyright (c) 2022
  * 
  */
 

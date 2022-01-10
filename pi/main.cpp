@@ -1,3 +1,15 @@
+/**
+ * @file main.cpp
+ * @author Andreas Daasch
+ * @brief Decoder for FanJu outdoor temperature/humidity sensor (MIT Licence)
+ * 
+ * @date 2022-01-10
+ * 
+ * @copyright Copyright (c) 2022
+ * 
+ */
+
+
 #include "fanju.h"
 
 #include <cstdio>
